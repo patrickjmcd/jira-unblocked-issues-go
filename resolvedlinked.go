@@ -1,0 +1,135 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	jira "github.com/andygrunwald/go-jira"
+	"github.com/fatih/color"
+)
+
+func checkLinkedIssueStatus(jiraClient *jira.Client, issue *jira.Issue, c chan string, verbose bool) {
+	issueLinks := issue.Fields.IssueLinks
+	var linkedIssues []*jira.Issue
+	for _, linked := range issueLinks {
+		if linked.OutwardIssue != nil {
+			linkedIssues = append(linkedIssues, linked.OutwardIssue)
+		}
+		if linked.InwardIssue != nil {
+			linkedIssues = append(linkedIssues, linked.InwardIssue)
+		}
+	}
+	linkedIssuesStillPending := false
+	for _, lIssue := range linkedIssues {
+		if verbose {
+			switch lIssue.Fields.Status.Name {
+			case "Done":
+				color.Set(color.FgRed)
+			case "In Progress":
+				color.Set(color.FgBlue)
+			case "To Do":
+				color.Set(color.FgGreen)
+			}
+
+			fmt.Printf(" -- [%s] %s = %+v\n", lIssue.Key, lIssue.Fields.Summary, lIssue.Fields.Status.Name)
+			color.Unset()
+		}
+		if lIssue.Fields.Status.Name != "Done" {
+			linkedIssuesStillPending = true
+		}
+	}
+	if !linkedIssuesStillPending && len(linkedIssues) > 0 {
+		c <- fmt.Sprintf("[%s] %s", issue.Key, issue.Fields.Summary)
+	}
+}
+
+func getLinkedIssuesForIssue(jiraClient *jira.Client, issue *jira.Issue) []*jira.Issue {
+	issueLinks := issue.Fields.IssueLinks
+	var linkedIssues []*jira.Issue
+	for _, linked := range issueLinks {
+		if linked.OutwardIssue != nil {
+			linkedIssues = append(linkedIssues, linked.OutwardIssue)
+		}
+		if linked.InwardIssue != nil {
+			linkedIssues = append(linkedIssues, linked.InwardIssue)
+		}
+	}
+	return linkedIssues
+}
+
+func checkResolvedLinkedIssuesForProject(jiraClient *jira.Client, projectName string, verbose bool) {
+	c := make(chan string)
+
+	searchOpts := jira.SearchOptions{
+		MaxResults: 999,
+	}
+
+	projectIssues, pResp, pErr := jiraClient.Issue.Search("project="+projectName+" and resolved is EMPTY", &searchOpts)
+	if pErr != nil {
+		fmt.Printf("Response: %+v\n", pResp)
+		fmt.Printf("Error: %+v\n", pErr)
+		os.Exit(1)
+	}
+
+	for _, issue := range projectIssues {
+		go func(issue jira.Issue) {
+			checkLinkedIssueStatus(jiraClient, &issue, c, verbose)
+		}(issue)
+	}
+
+	for l := range c {
+		color.Red(l)
+	}
+
+}
+
+func getResolvedLinkedIssuesForProject(jiraClient *jira.Client, projectName string, verbose bool) []jira.Issue {
+	searchOpts := jira.SearchOptions{
+		MaxResults: 999,
+	}
+
+	var issuesWithResolvedLinkedIssues []jira.Issue
+
+	projectIssues, pResp, pErr := jiraClient.Issue.Search("project="+projectName+" and resolved is EMPTY", &searchOpts)
+
+	if pErr != nil {
+		fmt.Printf("Response: %+v\n", pResp)
+		fmt.Printf("Error: %+v\n", pErr)
+		os.Exit(1)
+	}
+
+	for _, issue := range projectIssues {
+		linkedIssues := getLinkedIssuesForIssue(jiraClient, &issue)
+		if verbose {
+			fmt.Printf("\n[%s] %s\n", issue.Key, issue.Fields.Summary)
+		}
+		linkedIssuesStillPending := false
+		for _, lIssue := range linkedIssues {
+			if verbose {
+				switch lIssue.Fields.Status.Name {
+				case "Done":
+					color.Set(color.FgRed)
+				case "In Progress":
+					color.Set(color.FgBlue)
+				case "To Do":
+					color.Set(color.FgGreen)
+				}
+				fmt.Printf(" -- [%s] %s = %+v\n", lIssue.Key, lIssue.Fields.Summary, lIssue.Fields.Status.Name)
+				color.Unset()
+			}
+			if lIssue.Fields.Status.Name != "Done" {
+				linkedIssuesStillPending = true
+			}
+		}
+		if !linkedIssuesStillPending && len(linkedIssues) > 0 {
+			issuesWithResolvedLinkedIssues = append(issuesWithResolvedLinkedIssues, issue)
+		}
+
+	}
+	if verbose {
+		fmt.Println()
+		fmt.Println()
+		fmt.Println()
+	}
+	return issuesWithResolvedLinkedIssues
+}
