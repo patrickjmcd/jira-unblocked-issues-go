@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -16,8 +17,7 @@ func getUnspecifiedKey(key string) string {
 	readVal, err := reader.ReadString('\n')
 
 	if err != nil {
-		fmt.Printf("You need to specify a %s\n", key)
-		os.Exit(1)
+		log.Fatalf("You need to specify a %s\n", key)
 	}
 	trimmedVal := strings.TrimSuffix(readVal, "\n")
 	fmt.Println(trimmedVal)
@@ -45,8 +45,7 @@ func getEnvVariablesOrAsk() (string, string, string) {
 func main() {
 	verbose := false
 	if len(os.Args) < 2 {
-		color.Red("Need to provide a project name as the first argument")
-		os.Exit(1)
+		log.Fatal("Need to provide a project name as the first argument")
 	}
 	projectName := os.Args[1]
 
@@ -63,8 +62,7 @@ func main() {
 	}
 	jiraClient, err := jira.NewClient(transport.Client(), url)
 	if err != nil {
-		fmt.Println("Couldn't log on to the Jira server.")
-		os.Exit(1)
+		log.Fatal("Couldn't log on to the Jira server.")
 	}
 
 	// checkResolvedLinkedIssuesForProject(jiraClient, projectName, verbose)

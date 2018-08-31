@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"log"
 
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/fatih/color"
@@ -23,18 +23,18 @@ func checkLinkedIssueStatus(jiraClient *jira.Client, issue *jira.Issue, c chan s
 	for _, lIssue := range linkedIssues {
 		if verbose {
 			switch lIssue.Fields.Status.Name {
-			case "Done":
-				color.Set(color.FgRed)
 			case "In Progress":
 				color.Set(color.FgBlue)
 			case "To Do":
 				color.Set(color.FgGreen)
+			default:
+				color.Set(color.FgRed)
 			}
 
 			fmt.Printf(" -- [%s] %s = %+v\n", lIssue.Key, lIssue.Fields.Summary, lIssue.Fields.Status.Name)
 			color.Unset()
 		}
-		if lIssue.Fields.Status.Name != "Done" {
+		if lIssue.Fields.Status.Name == "In Progress" || lIssue.Fields.Status.Name == "To Do" {
 			linkedIssuesStillPending = true
 		}
 	}
@@ -64,11 +64,9 @@ func checkResolvedLinkedIssuesForProject(jiraClient *jira.Client, projectName st
 		MaxResults: 999,
 	}
 
-	projectIssues, pResp, pErr := jiraClient.Issue.Search("project="+projectName+" and resolved is EMPTY", &searchOpts)
+	projectIssues, _, pErr := jiraClient.Issue.Search("project="+projectName+" and resolved is EMPTY", &searchOpts)
 	if pErr != nil {
-		fmt.Printf("Response: %+v\n", pResp)
-		fmt.Printf("Error: %+v\n", pErr)
-		os.Exit(1)
+		log.Fatal(pErr)
 	}
 
 	for _, issue := range projectIssues {
@@ -90,12 +88,10 @@ func getResolvedLinkedIssuesForProject(jiraClient *jira.Client, projectName stri
 
 	var issuesWithResolvedLinkedIssues []jira.Issue
 
-	projectIssues, pResp, pErr := jiraClient.Issue.Search("project="+projectName+" and resolved is EMPTY", &searchOpts)
+	projectIssues, _, pErr := jiraClient.Issue.Search("project="+projectName+" and resolved is EMPTY", &searchOpts)
 
 	if pErr != nil {
-		fmt.Printf("Response: %+v\n", pResp)
-		fmt.Printf("Error: %+v\n", pErr)
-		os.Exit(1)
+		log.Fatal(pErr)
 	}
 
 	for _, issue := range projectIssues {
@@ -107,17 +103,17 @@ func getResolvedLinkedIssuesForProject(jiraClient *jira.Client, projectName stri
 		for _, lIssue := range linkedIssues {
 			if verbose {
 				switch lIssue.Fields.Status.Name {
-				case "Done":
-					color.Set(color.FgRed)
 				case "In Progress":
 					color.Set(color.FgBlue)
 				case "To Do":
 					color.Set(color.FgGreen)
+				default:
+					color.Set(color.FgRed)
 				}
 				fmt.Printf(" -- [%s] %s = %+v\n", lIssue.Key, lIssue.Fields.Summary, lIssue.Fields.Status.Name)
 				color.Unset()
 			}
-			if lIssue.Fields.Status.Name != "Done" {
+			if lIssue.Fields.Status.Name == "To Do" || lIssue.Fields.Status.Name == "In Progress" {
 				linkedIssuesStillPending = true
 			}
 		}
