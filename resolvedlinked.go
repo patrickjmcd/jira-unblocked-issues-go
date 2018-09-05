@@ -97,7 +97,7 @@ func getResolvedLinkedIssuesForProject(jiraClient *jira.Client, projectName stri
 	for _, issue := range projectIssues {
 		linkedIssues := getLinkedIssuesForIssue(jiraClient, &issue)
 		if verbose {
-			fmt.Printf("\n[%s] %s\n", issue.Key, issue.Fields.Summary)
+			fmt.Printf("\n[%s] %s -- %d issues\n", issue.Key, issue.Fields.Summary, len(linkedIssues))
 		}
 		linkedIssuesStillPending := false
 		for _, lIssue := range linkedIssues {
