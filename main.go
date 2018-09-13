@@ -6,54 +6,77 @@ import (
 	"log"
 	"os"
 	"strings"
+	"syscall"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/fatih/color"
+	flag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func getUnspecifiedKey(key string) string {
+	var byteRead []byte
+	var stringRead string
+	var err error
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("%s: ", key)
-	readVal, err := reader.ReadString('\n')
+	if key == "Jira Password" {
+		byteRead, err = terminal.ReadPassword(int(syscall.Stdin))
+		stringRead = string(byteRead)
+	} else {
+		stringRead, err = reader.ReadString('\n')
+	}
 
 	if err != nil {
 		log.Fatalf("You need to specify a %s\n", key)
 	}
-	trimmedVal := strings.TrimSuffix(readVal, "\n")
-	fmt.Println(trimmedVal)
+	trimmedVal := strings.TrimSuffix(stringRead, "\n")
 	return trimmedVal
 }
 
 func getEnvVariablesOrAsk() (string, string, string) {
-	jiraURL, urlExists := os.LookupEnv("JIRA_URL")
-	if !urlExists {
+	var jiraURL string
+	var jiraUsername string
+	var jiraPassword string
+
+	viper.SetEnvPrefix("jira")
+	viper.BindEnv("username")
+	viper.BindEnv("url")
+	viper.BindEnv("password")
+
+	jiraURL = viper.GetString("url")
+	if !viper.IsSet("url") {
 		jiraURL = getUnspecifiedKey("Jira URL")
+		os.Setenv("JIRA_URL", jiraURL)
 	}
 
-	jiraUsername, usernameExists := os.LookupEnv("JIRA_USERNAME")
-	if !usernameExists {
+	jiraUsername = viper.GetString("username")
+	if !viper.IsSet("username") {
 		jiraUsername = getUnspecifiedKey("Jira Username")
+		os.Setenv("JIRA_USERNAME", jiraUsername)
 	}
-	jiraPassword, passwordExists := os.LookupEnv("JIRA_PASSWORD")
-	if !passwordExists {
+
+	jiraPassword = viper.GetString("password")
+	if !viper.IsSet("password") {
 		jiraPassword = getUnspecifiedKey("Jira Password")
+		os.Setenv("JIRA_PASSWORD", jiraPassword)
 	}
 
 	return jiraURL, jiraUsername, jiraPassword
 }
 
 func main() {
-	verbose := false
-	if len(os.Args) < 2 {
-		log.Fatal("Need to provide a project name as the first argument")
-	}
-	projectName := os.Args[1]
+	var projectName string
+	var verbose bool
 
-	if len(os.Args) > 2 {
-		if os.Args[2] == "v" {
-			verbose = true
-		}
-	}
+	flag.StringP("project", "P", "", "The Jira code for the project to monitor")
+	flag.BoolP("verbose", "v", false, "Print all issues to the console")
+	flag.Parse()
+	viper.BindPFlags(flag.CommandLine)
+
+	projectName = viper.GetString("project")
+	verbose = viper.GetBool("verbose")
 
 	url, username, password := getEnvVariablesOrAsk()
 	transport := jira.BasicAuthTransport{
