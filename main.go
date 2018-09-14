@@ -95,7 +95,7 @@ func main() {
 		color.Red("   The following %d issues have completed linked issues  ", len(issuesWithResolved))
 		color.Red("------------------------------------------------------")
 		for _, issue := range issuesWithResolved {
-			color.Red("[%s] %s", issue.Key, issue.Fields.Summary)
+			color.Red("[%s] %s - %s/browse/%s", issue.Key, issue.Fields.Summary, url, issue.Key)
 		}
 		color.Red("------------------------------------------------------")
 	} else {
